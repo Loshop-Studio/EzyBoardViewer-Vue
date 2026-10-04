@@ -1,0 +1,74 @@
+{
+  "name": "ezy-board-viewer",
+  "version": "0.1.0",
+  "description": "Ezy 画板 / 云笔记预览组件：渲染、翻页、缩放，并支持导出 SVG / MP4 / PDF",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "index.d.ts",
+    "NOTE_VIEWER.md",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "vue": "^3.4.0",
+    "element-plus": "^2.7.0",
+    "@element-plus/icons-vue": "^2.3.0",
+    "mp4-muxer": "^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "mp4-muxer": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@element-plus/icons-vue": "^2.3.1",
+    "@vitejs/plugin-vue": "^5.0.5",
+    "element-plus": "^2.7.6",
+    "vite": "^5.3.3",
+    "vue": "^3.4.31"
+  },
+  "keywords": [
+    "vue",
+    "vue3",
+    "board",
+    "whiteboard",
+    "note",
+    "sketch",
+    "svg",
+    "pdf",
+    "mp4",
+    "ezy"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Loshop-Studio/EzyBoardViewer-Vue.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Loshop-Studio/EzyBoardViewer-Vue/issues"
+  },
+  "homepage": "https://github.com/Loshop-Studio/EzyBoardViewer-Vue#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
