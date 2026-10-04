@@ -169,6 +169,8 @@ const rgba = c => { const [k, o] = col(c); return `rgba(${parseInt(k.slice(1, 3)
 const AUDIO_RE = /\.(mp3|aac|m4a|wav|ogg|opus|amr|flac)$/i;
 const AMIME = { mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac', wav: 'audio/wav', ogg: 'audio/ogg', opus: 'audio/ogg', amr: 'audio/amr', flac: 'audio/flac' };
 const ts = ms => { ms = Math.max(0, Math.round(ms)); return `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}.${String(ms % 1000).padStart(3, '0')}`; };
+/** 秒级时间（移动端底部条显示用，不带毫秒） */
+const tsSec = ms => { ms = Math.max(0, Math.round(ms)); return `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}`; };
 
 async function pagesOf(zip) {
   const rp = zip.names.find(n => n.split('/').pop() === 'page_router.bin');
@@ -331,6 +333,31 @@ function paintPage(ctx, P, lt, s) {
 }
 const pageAt = (R, gt) => { const p = R.P.find(x => gt < x.off + x.len) || R.P[R.P.length - 1]; return [p, Math.min(Math.max(gt - p.off, 0), p.len)]; };
 
+/* 音频混合：一次性 OfflineAudioContext 在长录音 / 移动端 WebView 上会占用巨量内存甚至挂起，
+   这里加超时与时长上限；失败就退化为无声导出，避免卡死在「混合音频」。 */
+const MIX_TIMEOUT_MS = 30000
+const MIX_MAX_MS = 20 * 60 * 1000
+function withTimeout(p, ms) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(Error('音频混合超时')), ms)
+    p.then(v => { clearTimeout(t); resolve(v) }, e => { clearTimeout(t); reject(e) })
+  })
+}
+async function mixAudio(clips, total, signal) {
+  if (signal && signal.aborted) throw Error('已取消')
+  if (!(total > 0) || total > MIX_MAX_MS) throw Error('录音过长，跳过音轨')
+  const sr = 48000, len = Math.ceil(total / 1000 * sr)
+  const oc = new OfflineAudioContext(2, len, sr)
+  for (const c of clips) {
+    if (signal && signal.aborted) throw Error('已取消')
+    const s = oc.createBufferSource()
+    s.buffer = await oc.decodeAudioData(c.buf.slice().buffer)
+    s.connect(oc.destination)
+    s.start(c.t0 / 1000)   // 起点 = 文件里的开始时间
+  }
+  return await oc.startRendering()
+}
+
 /* ---------- MP4 导出（WebCodecs，离线逐帧渲染，时间戳 = 文件时间轴） ---------- */
 async function exportMp4(R, q, log = () => {}, signal) {
   if (!globalThis.VideoEncoder) throw Error('当前浏览器不支持 WebCodecs，请使用最新版 Chrome / Edge');
@@ -343,9 +370,9 @@ async function exportMp4(R, q, log = () => {}, signal) {
     const acfg = { codec: 'mp4a.40.2', sampleRate: 48000, numberOfChannels: 2, bitrate: 128000 };
     if (globalThis.AudioEncoder && (await AudioEncoder.isConfigSupported(acfg)).supported) {
       log('mix', 0);
-      const oc = new OfflineAudioContext(2, Math.ceil(R.total / 1000 * 48000), 48000);
-      for (const c of R.clips) { const s = oc.createBufferSource(); s.buffer = await oc.decodeAudioData(c.buf.slice().buffer); s.connect(oc.destination); s.start(c.t0 / 1000); }   // 起点 = 文件里的开始时间
-      audio = { buf: await oc.startRendering(), cfg: acfg };
+      const buf = await withTimeout(mixAudio(R.clips, R.total, signal), MIX_TIMEOUT_MS).catch(() => null);
+      if (buf) audio = { buf, cfg: acfg };
+      else log('noaudio', 0);   // 混合失败/超时 → 无声导出，绝不卡住
     } else log('noaudio', 0);
   }
   const mux = new Muxer({ target: new ArrayBufferTarget(), video: { codec: 'avc', width: w, height: h }, ...(audio ? { audio: { codec: 'aac', numberOfChannels: 2, sampleRate: 48000 } } : {}), fastStart: 'in-memory' });
@@ -420,6 +447,6 @@ function mergeSvgs(list) {
 }
 const MP4_QUALITY = { low: { key: 'low', label: '流畅 · 960p', long: 960, kbps: 1500 }, mid: { key: 'mid', label: '标准 · 1280p', long: 1280, kbps: 3000 }, high: { key: 'high', label: '高清 · 1920p', long: 1920, kbps: 8000 } };
 
-export { readZip, detect, convert, loadRec, pageAt, paintPage, exportMp4, ts, toVfs, openSource, mergeSvgs, svgSize, MP4_QUALITY, GAP };
+export { readZip, detect, convert, loadRec, pageAt, paintPage, exportMp4, ts, tsSec, toVfs, openSource, mergeSvgs, svgSize, MP4_QUALITY, GAP };
 // protobuf 基础读取工具：供 note.js / mdb.js 复用（按键取子消息、字符串、repeated 等）
 export { pb, G, I, F, S, M, A };

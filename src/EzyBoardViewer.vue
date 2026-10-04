@@ -5,7 +5,7 @@ import {
   ElSlider, ElIcon, ElProgress, ElAlert, ElMessage
 } from 'element-plus'
 import { ZoomIn, ZoomOut, VideoPlay, VideoPause, Mute, Microphone, Loading, Close, Picture, VideoCamera } from '@element-plus/icons-vue'
-import { detect, convert, loadRec, pageAt, paintPage, exportMp4 as encodeMp4, openSource, mergeSvgs, MP4_QUALITY, ts } from './core/board.js'
+import { detect, convert, loadRec, pageAt, paintPage, exportMp4 as encodeMp4, openSource, mergeSvgs, MP4_QUALITY, tsSec } from './core/board.js'
 
 defineOptions({ name: 'EzyBoardViewer' })
 
@@ -47,6 +47,24 @@ const exporting = ref(null)            // { stage, frac }
 const rectAt = (x, y) => ({ x, y, width: 0, height: 0, top: y, left: x, right: x, bottom: y })   // 虚拟触发点，不依赖 DOMRect（兼容 SSR）
 const menuPos = ref(rectAt(0, 0))
 const trigRef = ref({ getBoundingClientRect: () => menuPos.value })
+
+/* 移动端（5+ 壳 / 窄屏）：底部条紧凑化、隐藏缩放按钮、3s 无触摸自动隐藏 */
+const compact = ref(false)
+const barHidden = ref(false)
+const BAR_HIDE_MS = 3000
+let barTimer = 0
+function pokeBar() {
+  if (!compact.value) return
+  barHidden.value = false
+  clearTimeout(barTimer)
+  barTimer = setTimeout(() => { barHidden.value = true }, BAR_HIDE_MS)
+}
+function detectCompact() {
+  if (typeof window === 'undefined') return
+  const w = window
+  compact.value = !!w.plus || !!(w.matchMedia && w.matchMedia('(max-width: 767px)').matches)
+  if (!compact.value) { barHidden.value = false; clearTimeout(barTimer) }
+}
 
 let zip = null, token = 0, fit = 1, touched = false
 let raf = 0, b0 = 0, w0 = 0, seeking = false, needDraw = true, els = [], lastEmit = 0, abortCtl = null
@@ -127,6 +145,7 @@ const ptr = new Map(); let lp = null, lpAt = 0
 const clearLp = () => { if (lp) { clearTimeout(lp); lp = null } }
 function onDown(e) {
   if (e.pointerType === 'mouse' && e.button !== 0) return
+  pokeBar()
   vp.value.setPointerCapture && vp.value.setPointerCapture(e.pointerId)
   ptr.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY })
   clearLp()
@@ -136,6 +155,7 @@ function onDown(e) {
   }
 }
 function onMove(e) {
+  pokeBar()
   const p = ptr.get(e.pointerId); if (!p) return
   if (lp && Math.hypot(e.clientX - p.sx, e.clientY - p.sy) > 8) clearLp()
   if (ptr.size === 1) {
@@ -151,8 +171,9 @@ function onMove(e) {
     if (od > 0) zoomAt(nd / od, nc.x - r.left, nc.y - r.top)
   }
 }
-function onUp(e) { ptr.delete(e.pointerId); clearLp() }
+function onUp(e) { pokeBar(); ptr.delete(e.pointerId); clearLp() }
 function onWheel(e) {
+  pokeBar()
   if (e.ctrlKey || e.metaKey) {                                             // Ctrl + 滚轮 / 触控板捏合
     e.preventDefault()
     const r = vp.value.getBoundingClientRect()
@@ -175,6 +196,7 @@ function setPlaying(v) {
   emit(v ? 'play' : 'pause')
 }
 function togglePlay() {
+  pokeBar()
   if (!playing.value && b0 >= total.value) b0 = 0
   setPlaying(!playing.value); needDraw = true
 }
@@ -259,13 +281,26 @@ function onCommand(cmd) {
 }
 
 /* ---------------- 生命周期 ---------------- */
-let ro = null
+let ro = null, mqNarrow = null
+const onNarrowChange = () => detectCompact()
+const onPlusReady = () => detectCompact()
 onMounted(() => {
+  detectCompact(); pokeBar()
+  if (typeof window !== 'undefined' && window.matchMedia) {
+    mqNarrow = window.matchMedia('(max-width: 767px)')
+    mqNarrow.addEventListener && mqNarrow.addEventListener('change', onNarrowChange)
+  }
+  document.addEventListener('plusready', onPlusReady, false)
   ro = new ResizeObserver(() => { measure(); if (!touched) fitView(); needDraw = true })
   vp.value && ro.observe(vp.value)
   tick()
 })
-onBeforeUnmount(() => { cancelAnimationFrame(raf); ro && ro.disconnect(); cancelExport(); token++; disposeAll() })
+onBeforeUnmount(() => {
+  clearTimeout(barTimer)
+  mqNarrow && mqNarrow.removeEventListener && mqNarrow.removeEventListener('change', onNarrowChange)
+  document.removeEventListener('plusready', onPlusReady, false)
+  cancelAnimationFrame(raf); ro && ro.disconnect(); cancelExport(); token++; disposeAll()
+})
 watch(() => [props.source, props.mode], load, { immediate: true })
 
 defineExpose({
@@ -291,6 +326,18 @@ const floatStyle = {
   background: 'var(--el-bg-color-overlay)', border: '1px solid var(--el-border-color-lighter)',
   borderRadius: 'var(--el-border-radius-base)', boxShadow: 'var(--el-box-shadow-light)'
 }
+/** 底部控制条：移动端更紧凑，且 3s 无触摸后淡出隐藏 */
+const barStyle = computed(() => {
+  if (!compact.value) return { ...floatStyle, left: '12px', right: '112px', bottom: '12px' }
+  return {
+    ...floatStyle, left: '8px', right: '8px', bottom: '8px', padding: '4px 8px', gap: '4px',
+    transition: 'opacity .25s ease, transform .25s ease',
+    opacity: barHidden.value ? 0 : 1,
+    transform: barHidden.value ? 'translateY(10px)' : 'none',
+    pointerEvents: barHidden.value ? 'none' : 'auto'
+  }
+})
+watch(compact, () => { barHidden.value = false; pokeBar() })
 </script>
 
 <template>
@@ -316,20 +363,20 @@ const floatStyle = {
     </div>
     <ElAlert v-if="phase === 'error'" :title="errMsg" type="error" show-icon :closable="false" :style="{ position: 'absolute', left: '12px', right: '12px', top: '12px', width: 'auto' }" />
 
-    <!-- 缩放：右下角 -->
-    <ElButtonGroup v-if="phase === 'ready'" :style="{ position: 'absolute', right: '12px', bottom: kind === 'recording' ? '18px' : '12px' }" @pointerdown.stop @contextmenu.stop.prevent>
+    <!-- 缩放：右下角（移动端隐藏） -->
+    <ElButtonGroup v-if="phase === 'ready' && !compact" :style="{ position: 'absolute', right: '12px', bottom: kind === 'recording' ? '18px' : '12px' }" @pointerdown.stop @contextmenu.stop.prevent>
       <ElButton :icon="ZoomOut" @click="zoomBtn(0.8)" />
       <ElButton :icon="ZoomIn" @click="zoomBtn(1.25)" />
     </ElButtonGroup>
 
-    <!-- 录制：底部浮动控制条 -->
-    <div v-if="phase === 'ready' && kind === 'recording'" :style="{ ...floatStyle, left: '12px', right: '112px', bottom: '12px' }" @pointerdown.stop @contextmenu.stop.prevent>
-      <ElButton circle :icon="playing ? VideoPause : VideoPlay" @click="togglePlay" />
-      <ElSlider :model-value="pos" :min="0" :max="total || 1" :step="1" :format-tooltip="ts" :style="{ flex: 1, margin: '0 8px' }" @input="onSeekInput" @change="onSeekChange" />
-      <span :style="{ fontSize: 'var(--el-font-size-small)', color: 'var(--el-text-color-regular)', whiteSpace: 'nowrap' }">{{ ts(pos) }} / {{ ts(total) }}</span>
-      <ElButton circle :icon="isMuted ? Mute : Microphone" @click="toggleMute" />
+    <!-- 录制：底部浮动控制条（移动端更紧凑，3s 无触摸自动隐藏） -->
+    <div v-if="phase === 'ready' && kind === 'recording'" :style="barStyle" @pointerdown.stop="pokeBar" @pointermove="pokeBar" @contextmenu.stop.prevent>
+      <ElButton circle :size="compact ? 'small' : 'default'" :icon="playing ? VideoPause : VideoPlay" @click="togglePlay" />
+      <ElSlider :model-value="pos" :min="0" :max="total || 1" :step="1" :format-tooltip="tsSec" :style="{ flex: 1, margin: compact ? '0 4px' : '0 8px' }" @input="onSeekInput" @change="onSeekChange" />
+      <span :style="{ fontSize: compact ? '12px' : 'var(--el-font-size-small)', color: 'var(--el-text-color-regular)', whiteSpace: 'nowrap' }">{{ tsSec(pos) }} / {{ tsSec(total) }}</span>
+      <ElButton circle :size="compact ? 'small' : 'default'" :icon="isMuted ? Mute : Microphone" @click="toggleMute" />
       <ElDropdown trigger="click" @command="setRate">
-        <ElButton>{{ rate }}x</ElButton>
+        <ElButton :size="compact ? 'small' : 'default'">{{ rate }}x</ElButton>
         <template #dropdown>
           <ElDropdownMenu>
             <ElDropdownItem v-for="r in speeds" :key="r" :command="r" :style="r === rate ? { color: 'var(--el-color-primary)' } : null">{{ r }}x</ElDropdownItem>
