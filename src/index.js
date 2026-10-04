@@ -59,6 +59,3 @@ export { drawSvgToPdf } from './utils/svgToPdf.ts'
 
 /** PDF 中文矢量字体：注册进 jsPDF（字体文件由使用方托管，路径可用 setCjkFontPath 覆盖） */
 export { ensureCjkPdfFont, loadCjkFontBase64, setCjkFontPath, CJK_PDF_FONT } from './utils/pdfFont.ts'
-
-/** 从页面截图推断背景网格 / 横线（新笔记不上传 header.bin 时的兜底） */
-export { detectBgLines } from './utils/noteBackground.ts'

@@ -72,9 +72,9 @@ async function load(resourceList, images) {
 </template>
 ```
 
-**底色与背景网格不需要手动传**：`createNoteVfs` 会从该页 `data.mdb` 里读
-（`HeaderEntity.defaultBackgroundColor` + `BackgroundLineConfigEntity`），
-读不到时才退回调用方传的 `bgcolor` / `bgLines`。
+**底色与背景网格不需要手动传**：`createNoteVfs` 只从该页 `data.mdb` 里读
+（`HeaderEntity.defaultBackgroundColor` + `BackgroundLineConfigEntity`）——
+这是云笔记 App 端背景的唯一权威来源，不做任何截图采样 / 图像推断。
 
 ### 导出 PDF（矢量）
 
@@ -111,7 +111,6 @@ import { noteToSvgs, noteToSvgBlob, boardToMp4Blob, filesToZip } from 'ezy-board
 | `createNoteVfs` | 云笔记资源 → 按需 VFS |
 | `drawSvgToPdf` / `ensureCjkPdfFont` / `setCjkFontPath` | 矢量 PDF 导出 |
 | `createBoard` / `parseColor` / `GRAPH` / `CMD` | 从零构造画板 |
-| `detectBgLines` | 从截图推断背景网格（兜底） |
 
 完整类型见 [index.d.ts](./index.d.ts)，格式说明见 [NOTE_VIEWER.md](./NOTE_VIEWER.md)。
 

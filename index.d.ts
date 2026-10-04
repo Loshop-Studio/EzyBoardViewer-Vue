@@ -264,18 +264,6 @@ export declare const CMD: { ADD: 1; REMOVE: 2; MATRIX: 3; CHANGE: 4; CUSTOM: 5; 
 
 /* ---------------- 适配层（可选能力，按需引入） ---------------- */
 
-/** 背景网格 / 横线参数 */
-export interface BgLines {
-  /** 线色，int32 0xAARRGGBB */
-  color: number
-  /** 线间距（画布像素） */
-  spacing: number
-  /** 线宽（画布像素） */
-  width: number
-  /** true = 横竖交错网格；false = 仅横线 */
-  cross: boolean
-}
-
 /** 云笔记某一页的资源指针 */
 export interface NotePage {
   /** 当前页号（1-based）。用作虚拟目录名（如 '1'、'2'） */
@@ -289,10 +277,6 @@ export interface NotePage {
   /** 画布尺寸，建议取该页截图像素尺寸 */
   width?: number
   height?: number
-  /** 画布底色（int32 0xAARRGGBB）。不传时依次尝试：mdb 的 HeaderEntity → 截图采样 */
-  bgcolor?: number
-  /** 背景网格 / 横线。不传时依次尝试：mdb 的 BackgroundLineConfigEntity → 截图推断 */
-  bgLines?: BgLines
 }
 /** 全局共享图片（多页共用，对应 res/image/*） */
 export interface NoteImage {
@@ -312,9 +296,6 @@ export interface NoteVfsOptions {
 }
 /** 云笔记资源元数据 → 按需拉取的虚拟文件系统 */
 export declare function createNoteVfs(opts: NoteVfsOptions): Promise<NoteVfs>
-
-/** 从页面截图推断背景网格 / 横线；无网格时返回 null */
-export declare function detectBgLines(img: HTMLImageElement): BgLines | null
 
 export interface SvgDrawBox {
   x: number

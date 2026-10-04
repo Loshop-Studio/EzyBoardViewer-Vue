@@ -1,6 +1,6 @@
 {
   "name": "ezy-board-viewer",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Ezy 画板 / 云笔记预览组件：渲染、翻页、缩放，并支持导出 SVG / MP4 / PDF",
   "type": "module",
   "main": "./dist/index.js",

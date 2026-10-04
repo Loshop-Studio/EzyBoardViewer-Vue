@@ -8,7 +8,21 @@
  *   - read(name): Promise<Uint8Array | null>   按需读取对应文件的字节
  */
 import { readBgLineConfig, readHeaderBgColor } from '../core/mdb.js'
-import type { BgLines } from './noteBackground'
+
+/**
+ * 背景网格 / 横线参数，与云笔记 mdb 的 BackgroundLineConfigEntity 一一对应。
+ * 唯一来源是该页 page_mdb/data.mdb，不做任何图像推断。
+ */
+export interface BgLines {
+  /** 线色，int32 0xAARRGGBB */
+  color: number
+  /** 线间距（画布像素） */
+  spacing: number
+  /** 线宽（画布像素） */
+  width: number
+  /** true = 横竖交错网格；false = 仅横线 */
+  cross: boolean
+}
 
 /** 云笔记某一页的资源指针 */
 export interface NotePage {
@@ -30,16 +44,6 @@ export interface NotePage {
    */
   width?: number
   height?: number
-  /**
-   * 该页画布背景色（protobuf varint 编码 0xAARRGGBB；-1=不透明白）。
-   * 不传则默认 -1（白底）。建议从页面截图（screenshot.png）左上角取色传入。
-   */
-  bgcolor?: number
-  /**
-   * 该页背景线（网格 / 横线）。新笔记不上传 header.bin，背景线只能由截图推断，
-   * 见 utils/noteBackground.detectBgLines。不传则只画纯色底。
-   */
-  bgLines?: BgLines
 }
 
 /** 共享图片资源（res/image/*）。多页共用一份。 */
@@ -106,8 +110,9 @@ function f32Bytes(tag: number, val: number): number[] {
  * 合成一个最小可用的 header.bin：
  *   field 2 = width、field 3 = height、field 11 = bgcolor、field 13 = 背景线（可选）。
  * bgcolor 用 protobuf int32 编码（0xAARRGGBB）：-1 = 不透明白（默认），0x80FF0000 = 半透明红，依此类推。
- * 背景线 f1=颜色 f2=间距 f3=是否交错(1=网格) f4=线宽，与 board.js 的读法一致
- * （新笔记不上传 header.bin，这些值由截图推断，见 utils/noteBackground）。
+ * 背景线 f1=颜色 f2=间距 f3=是否交错(1=网格) f4=线宽，与 board.js 的读法一致。
+ * 二者均取自该页 page_mdb/data.mdb（HeaderEntity.defaultBackgroundColor /
+ * BackgroundLineConfigEntity）——这是云笔记 App 端唯一的背景权威来源，不做任何图像推断。
  * board.js 用 `BigInt.asIntN(32, v)` 解码，自动把 varint 还原成有符号 int32 → col() 转为 #RRGGBB + alpha。
  */
 function makeHeaderBlob(width: number, height: number, bgcolor: number = -1, bgLines?: BgLines): Blob {
@@ -223,11 +228,11 @@ export async function createNoteVfs(opts: NoteVfsOptions): Promise<NoteVfs> {
       const p = pageDirMap.get(dir)
       const w = p?.width || 1080
       const h = p?.height || 1920
-      // 底色与背景线以该页 mdb 为准（HeaderEntity / BackgroundLineConfigEntity）；
-      // mdb 取不到时才退回调用方按截图推断的结果
+      // 底色与背景线唯一来源：该页 page_mdb/data.mdb
+      // （HeaderEntity.defaultBackgroundColor / BackgroundLineConfigEntity）
       const cfg = await pageMdbConfig(p?.mdbUrl)
-      const bg = cfg.bgColor ?? (p?.bgcolor != null ? p.bgcolor : -1)
-      const bgLines = cfg.bgLines || p?.bgLines
+      const bg = cfg.bgColor ?? -1
+      const bgLines = cfg.bgLines || undefined
       const blob = makeHeaderBlob(w, h, bg, bgLines)
       return new Uint8Array(await blob.arrayBuffer())
     }
