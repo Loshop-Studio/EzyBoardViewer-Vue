@@ -1,5 +1,7 @@
 # EzyBoardViewer-Vue
 
+> 源码仓库：[github.com/Loshop-Studio/EzyBoardViewer-Vue](https://github.com/Loshop-Studio/EzyBoardViewer-Vue)
+
 Ezy 画板 / 云笔记的 **Vue 3 预览组件与导出工具集**。渲染 `.bin` 画板快照、翻页缩放、播放笔迹动画，并导出 SVG / MP4 / PDF。
 
 - `EzyBoardViewer` —— 通用画板预览（随身答等场景）
